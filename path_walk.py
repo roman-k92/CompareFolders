@@ -5,11 +5,11 @@ from datetime import datetime
 import settings
 import compare_files
 
-# List of folders that must be skip
+
 listExcludeFolders = settings.listExcludeFolders
-
-
 sDelimeter = settings.sDelimeter
+
+dictFiles = {}
 
 def compute_md5(file_name):
     hash_md5 = hashlib.md5()
@@ -18,7 +18,7 @@ def compute_md5(file_name):
             hash_md5.update(chunk)
     return hash_md5.hexdigest()
 
-def CollectFilesInfo(sRootPath, sOutFilePath):
+def collect_files_info(sRootPath, sOutFilePath):
     try:
 
         objOutCSV = open(sOutFilePath, "w", encoding = 'utf-8')
@@ -26,12 +26,10 @@ def CollectFilesInfo(sRootPath, sOutFilePath):
         # Varibale to print info
         counter = 0
 
-        # Get and print current time
         objNow = datetime.now()
         sCurrentTime = objNow.strftime("%H:%M:%S")
         print( str(counter) + '\t' + sCurrentTime)
 
-        # Create object to make walk
         objFileSystemInfo = os.walk(sRootPath)
 
         # Read every file
@@ -77,7 +75,6 @@ def CollectFilesInfo(sRootPath, sOutFilePath):
                     # Additional info
                     if counter % 10000 == 0:
 
-                        # Get current time and print
                         objNow = datetime.now()
                         sCurrentTime = objNow.strftime("%H:%M:%S")
                         print( str(counter) + '\t' + sCurrentTime)
@@ -87,12 +84,11 @@ def CollectFilesInfo(sRootPath, sOutFilePath):
         # Get current time and print
         objNow = datetime.now()
         sCurrentTime = objNow.strftime("%H:%M:%S")
-        print('Finish ' + sCurrentTime)
+        print(str(counter) + '\t' + sCurrentTime)
 
     except Exception as err:
         print(f"Unexpected {err=}, {type(err)=}")
 
-        # Close output file
         objOutCSV.close()
 
 if __name__ == '__main__':
@@ -120,16 +116,34 @@ if __name__ == '__main__':
             sOutFileName = '_' + sFilePrefix.lower() + 'disk_' + sCurrentDate + '.csv'
             sOutFile = sOutFilePath + sOutFileName
 
-            if sDrive == 'D':
-                compare_files.sTEMPLATEFILE = sOutFile
-
-            else:
-                compare_files.sPATHCOMPARE   = sOutFile
-
-            #CollectFilesInfo(sRootPath, sOutFile)
+            collect_files_info(sRootPath, sOutFile)
+            dictFiles[sDrive] = sOutFile
 
 
 
+    print('\n##### List of files ####')
+    for sKey in dictFiles:
+        print(sKey + ':', dictFiles[sKey])
 
-    compare_files.print_text()
+    print('')
+
+    while(True):
+
+        sDisk = (input("Choose one letter to set a template file: ")).upper()
+        if sDisk in dictFiles:
+
+            compare_files.sTEMPLATEFILE = dictFiles[sDisk]
+            compare_files.sDISK = sDisk
+            print('\nYou choose', compare_files.sTEMPLATEFILE)
+
+            del dictFiles[sDisk]
+            break
+
+
+    for sKey in dictFiles:
+        compare_files.sPATHCOMPARE = dictFiles[sKey]
+        compare_files.start_compare()
+
+
+    print('### FINISH ###')
     time.sleep(3)
