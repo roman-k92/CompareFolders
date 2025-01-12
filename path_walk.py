@@ -1,37 +1,162 @@
 import os
-import hashlib
+import sys
 import time
+import hashlib
+import multiprocessing
+import threading
 from datetime import datetime
 import settings
 import compare_files
 
-# List of folders that must be skip
+
 listExcludeFolders = settings.listExcludeFolders
-
-
 sDelimeter = settings.sDelimeter
 
-def compute_md5(file_name):
-    hash_md5 = hashlib.md5()
-    with open(file_name, "rb") as f:
-        for chunk in iter(lambda: f.read(4096), b""):
-            hash_md5.update(chunk)
-    return hash_md5.hexdigest()
+dictFiles = {}
 
-def CollectFilesInfo(sRootPath, sOutFilePath):
-    try:
+nCounter = None
 
-        objOutCSV = open(sOutFilePath, "w", encoding = 'utf-8')
+pool = None
+objOutCSV = None
 
-        # Varibale to print info
-        counter = 0
 
-        # Get and print current time
+################################################################################
+def counter_info():
+
+    objNow = datetime.now()
+    sCurrentTime = objNow.strftime("%H:%M:%S")
+
+    global nCounter
+
+    if settings.bCalculateHash:
+        with nCounter.get_lock():
+            nCounter.value += 1
+
+            if nCounter.value % settings.nLine == 0:
+                print(str(nCounter.value) + '\t' + sCurrentTime, flush=True)
+
+    else:
+        nCounter = nCounter + 1
+
+        # Additional info
+        if nCounter % settings.nLine == 0:
+            print(str(nCounter) + '\t' + sCurrentTime, flush=True)
+
+################################################################################
+def init(nCnt):
+    global nCounter
+    nCounter = nCnt
+
+################################################################################
+def alive():
+
+    while True:
         objNow = datetime.now()
         sCurrentTime = objNow.strftime("%H:%M:%S")
-        print( str(counter) + '\t' + sCurrentTime)
+        print('I\'m alive', sCurrentTime, flush = True)
 
-        # Create object to make walk
+        time.sleep(settings.nTimeAlive)
+
+################################################################################
+def create_string_for_file(tplFileInfo):
+
+    sStrToWrite = ''
+
+    for sParam in tplFileInfo:
+
+        if sParam:
+
+            sStrToWrite = sStrToWrite + '"' + str(sParam) + '"' + sDelimeter
+
+
+    sStrToWrite = sStrToWrite + '\n'
+
+    return sStrToWrite
+
+################################################################################
+def compute_md5_async(sRootDir, listFiles):
+
+    write_log('Start '  +  sRootDir + '; pid = ' + str(os.getpid()) + '\n')
+
+    listRes = []
+
+    for sFileName in listFiles:
+        sFullPath = os.path.join(sRootDir, sFileName)
+
+        # Check path is file, not directory
+        bIsFile = os.path.isfile(sFullPath)
+        if bIsFile:
+
+            tplFileInfo = get_additional_info(sFullPath)
+
+            sMd5 = compute_md5(sFullPath)
+
+            tplFileInfo = tplFileInfo + (sMd5,)
+
+            listRes.append(tplFileInfo)
+
+    write_log('Finish '  +  sRootDir + '; pid = ' + str(os.getpid()) + '\n')
+
+    return listRes
+
+################################################################################
+def write_log(sLine):
+    with open('log.txt', 'a') as outfile:
+        outfile.write(sLine)
+
+################################################################################
+def compute_md5(sFullPath):
+    try:
+        hash_md5 = hashlib.md5()
+        with open(sFullPath, "rb") as f:
+            for chunk in iter(lambda: f.read(4096), b""):
+                hash_md5.update(chunk)
+
+        sMd5 = hash_md5.hexdigest().upper()
+
+        counter_info()
+
+    except:
+        sMd5 = '<No data>'
+        print('Md5 exception for ' + sFullPath)
+
+    return sMd5
+
+################################################################################
+def write_file_info(listRes):
+
+    for tplFileInfo in listRes:
+
+        sStrToWrite = create_string_for_file(tplFileInfo)
+
+        # Write line
+        objOutCSV.write(sStrToWrite)
+
+################################################################################
+# error callback function
+def handler(error):
+    print(f'Error handler: {error}', flush = True)
+
+
+################################################################################
+def get_additional_info(sFullPath):
+
+    # Get path without disk letter
+    sRelFilePath = sFullPath[3:] # os.path.relpath(sFullPath, name)
+
+    # Get file size
+    nFileSize = os.path.getsize(sFullPath)
+
+
+    # File changed
+    fFileTime = os.path.getmtime(sFullPath)
+    sEditTime = datetime.fromtimestamp(fFileTime).strftime("%d.%m.%Y %H:%M:%S")
+
+    return (sRelFilePath, nFileSize, sEditTime)
+
+################################################################################
+def collect_files_info(sRootPath):
+    try:
         objFileSystemInfo = os.walk(sRootPath)
 
         # Read every file
@@ -42,94 +167,163 @@ def CollectFilesInfo(sRootPath, sOutFilePath):
                 if skipDir in listExcludeFolders:
                     subdirs.remove(skipDir)
 
-            # Get info about every file
-            for name in files:
 
-                # Get full path
-                sFullPath = os.path.join(path, name)
-
-                # Get path witout disk letter
-                sRelFilePath = sFullPath[3:] # os.path.relpath(sFullPath, name)
-
-                # Check path is file, not directory
-                bIsFile = os.path.isfile(sFullPath)
-                if bIsFile:
-
-                    try:
-                        # Calculate MD%
-                        #sMd5 = sDelimeter + compute_md5(sFullPath)
-                        sMd5 = ''
-                    except:
-                        print('Exception for ' + sFullPath)
-                        sMd5 = sDelimeter + 'EMPTY'
-
-                    # Get file size
-                    nFileSize = os.path.getsize(sFullPath)
-
-                    # Form out string to write
-                    sStrToWrite = '"' + sRelFilePath + '"' + sDelimeter + str(nFileSize) + sMd5 + '\n'
-
-                    # Write line
-                    objOutCSV.write(sStrToWrite)
-
-                    counter = counter + 1
-
-                    # Additional info
-                    if counter % 10000 == 0:
-
-                        # Get current time and print
-                        objNow = datetime.now()
-                        sCurrentTime = objNow.strftime("%H:%M:%S")
-                        print( str(counter) + '\t' + sCurrentTime)
-
-        objOutCSV.close()
-
-        # Get current time and print
-        objNow = datetime.now()
-        sCurrentTime = objNow.strftime("%H:%M:%S")
-        print('Finish ' + sCurrentTime)
-
-    except Exception as err:
-        print(f"Unexpected {err=}, {type(err)=}")
-
-        # Close output file
-        objOutCSV.close()
-
-if __name__ == '__main__':
-
-    listDrives = settings.listDiskToWalk
-
-    sOutFilePath = settings.sOutFilePath
-
-
-    objNow = datetime.now().date()
-    sCurrentDate = objNow.strftime("%Y_%m_%d")
-
-    for sDrive in listDrives:
-
-        sRootPath = sDrive + ':\\'
-
-        isExist = os.path.exists(sRootPath)
-
-        if isExist:
-
-            print('================ Scan ', sRootPath, ' ================')
-
-            sFilePrefix = sDrive + '_'
-
-            sOutFileName = '_' + sFilePrefix.lower() + 'disk_' + sCurrentDate + '.csv'
-            sOutFile = sOutFilePath + sOutFileName
-
-            if sDrive == 'D':
-                compare_files.sTEMPLATEFILE = sOutFile
+            if settings.bCalculateHash:
+                pool.apply_async(compute_md5_async, (path, files,), callback = write_file_info, error_callback = handler)
 
             else:
-                compare_files.sPATHCOMPARE   = sOutFile
+                # Get info about every file
+                for name in files:
 
-            #CollectFilesInfo(sRootPath, sOutFile)
+                    # Get full path
+                    sFullPath = os.path.join(path, name)
+
+                    # Check path is file, not directory
+                    bIsFile = os.path.isfile(sFullPath)
+
+                    sMd5 = ''
+
+                    if bIsFile:
+
+                        tplFileInfo = get_additional_info(sFullPath)
+
+                        sMd5 = compute_md5(sFullPath)
+
+                        if not sMd5:
+                            counter_info()
+
+                        tplFileInfo = tplFileInfo + (sMd5,)
+
+                        sStrToWrite = create_string_for_file(tplFileInfo)
+                        objOutCSV.write(sStrToWrite)
+
+
+            #break
+
+    except Exception as err:
+        print(f"Unexpected {err=}, {type(err)=} in collect_files_info")
+
+################################################################################
+def print_results(objStart, nCnt):
+
+    objNow = datetime.now()
+
+    sCurrentTime = objNow.strftime("%H:%M:%S")
+
+    print('### FINISH at', sCurrentTime, '###', str((objNow - objStart).total_seconds() ) + '; Amount = ' + str(nCnt))
+
+
+################################################################################
+if __name__ == '__main__':
+
+    try:
+        start = datetime.now()
+
+        process = multiprocessing.Process(target = alive)
+        process.start()
+
+        listCsv = []
+
+        objNow = datetime.now()
+        sCurrentTime = objNow.strftime("%H:%M:%S")
+
+        if settings.bCalculateHash:
+
+            nCounter = multiprocessing.Value('i', 0)
+
+            print(str(nCounter.value) + '\t' + sCurrentTime)
+
+            # количество ядер у процессора
+            n_proc = multiprocessing.cpu_count()
+
+            pool = multiprocessing.Pool(processes=n_proc, initializer = init, initargs = (nCounter,))
+
+        else:
+            nCounter = 0
+
+            print(str(nCounter) + '\t' + sCurrentTime)
+
+        listDrives = settings.listDiskToWalk
+
+        sOutFilePath = os.path.join(os.path.join(os.environ['USERPROFILE']), 'Desktop') # Windows only
+
+
+        objDate = datetime.now().date()
+        sCurrentDate = objDate.strftime("%Y_%m_%d")
+
+        for sDrive in listDrives:
+
+            sRootPath = sDrive + ':\\'
+
+            isExist = os.path.exists(sRootPath)
+
+            if isExist:
+
+                print('================ Scan ', sRootPath, ' ================')
+
+                sFilePrefix = sDrive + '_'
+
+                sOutFileName = '_' + sFilePrefix.lower() + 'disk_' + sCurrentDate + '.csv'
+                sOutFile = os.path.join(sOutFilePath, sOutFileName)
+
+                objOutCSV = open(sOutFile, "w", encoding = 'utf-8')
+
+                collect_files_info(sRootPath)
+                dictFiles[sDrive] = sOutFile
+                listCsv.append(objOutCSV)
 
 
 
+        if pool:
+            pool.close()
+            pool.join()
 
-    compare_files.print_text()
-    time.sleep(3)
+        for objFile in listCsv:
+            objFile.close()
+
+        process.terminate() # alive logger
+
+        print('\n##### List of files ####')
+        for sKey in dictFiles:
+            print(sKey + ':', dictFiles[sKey])
+
+        print('')
+
+        while(True):
+
+            sDisk = (input("Choose one letter to set a template file: ")).upper()
+            if sDisk in dictFiles:
+
+                compare_files.sTEMPLATEFILE = dictFiles[sDisk]
+                compare_files.sDISK = sDisk
+                print('\nYou choose', compare_files.sTEMPLATEFILE)
+
+                del dictFiles[sDisk]
+                break
+
+
+        for sKey in dictFiles:
+            compare_files.sPATHCOMPARE = dictFiles[sKey]
+            compare_files.start_compare()
+
+
+        if settings.bCalculateHash:
+            print_results(start, nCounter.value)
+
+        else:
+            print_results(start, nCounter)
+
+        time.sleep(3)
+
+    except:
+
+        process.terminate()
+
+        if settings.bCalculateHash:
+            print_results(start, nCounter.value)
+
+        else:
+            print_results(start, nCounter)
+
+
+        time.sleep(1)

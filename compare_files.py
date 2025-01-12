@@ -2,29 +2,30 @@ import os
 import settings
 import traceback
 
+sDISK = ''
 sTEMPLATEFILE = ''
 sPATHCOMPARE = ''
 
-def CandidateDelFiles(setToDelete):
+def copy_files(setCandidateToCopy):
     try:
-        sPathOutCsv = r'C:\Users\Name\Desktop\to_del.csv'
-        objCsv = open(sPathOutCsv, 'w', encoding = 'utf-8')
-
-        for sPath in setToDelete:
+        sOutFilePath = os.path.join(os.getcwd(), 'to_copy.txt')
+        objOutTxt = open(sOutFilePath, "w", encoding = 'utf-8')
+        for sPath in sorted(setCandidateToCopy):
             listPath = sPath.split(';')
-            sPathToDel = 'D:\\' + listPath[0]
-            sPathToDel = sPathToDel.replace('\"', '')
+            sPathToCopy = os.path.join(sDISK + ':\\', listPath[0])
+            sPathToCopy = sPathToCopy.replace('\"', '')\
 
-            objCsv.write(sPathToDel + '\n')
+            objOutTxt.write(sPathToCopy + '\n')
 
-        objCsv.close()
-
+        objOutTxt.close()
     except:
+        objOutTxt.close()
         traceback.print_exc()
 
 
-def CompareFiles():
-    if not (sTEMPLATEFILE and sPATHCOMPARE):
+def start_compare():
+
+    if not (sTEMPLATEFILE and sPATHCOMPARE and sDISK):
         print('EMPTY VALUES')
         exit(0)
 
@@ -40,23 +41,7 @@ def CompareFiles():
             setCompareData.add(sLine)
 
 
-    setDiff = setCompareData.difference(setTemplateData)
-    CandidateDelFiles(setDiff)
+    setDiff = setTemplateData.difference(setCompareData)
 
-
-
-def print_text():
-    print(sTEMPLATEFILE)
-    print(sPATHCOMPARE)
-    #val = 0
-    #sCsv = r'C:\Users\Name\Desktop\to_del.csv'
-    #objFile = open(sCsv, encoding = 'utf-8')
-    #for sRow in objFile:
-     #   outRow = sRow.replace('\n', '')
-      #  print(outRow)
-       # os.remove(outRow)
-       # val = val + 1
-    #objFile.close()
-    #print(val)
-
+    copy_files(setDiff)
 
