@@ -4,14 +4,12 @@ listExcludeFolders = ['GoogleDrive', 'VirtualBox']
 
 listDiskToWalk = ['D', 'E', 'F']
 
-# File prefix
 sDelimeter = ';'
 
+bCalculateHash = False
 
-# Path to save the file
-sOutFilePath = 'C:\\Users\\Name\\Desktop\\'
+# Print after minutes
+nTimeAlive = 2 * 60
 
-################################################################
-# Set parameters to compare
-sTemplateFile = 'C:\\Users\\Name\\Desktop\\e_disk.csv'
-sPathCompare = 'C:\\Users\\Name\\Desktop\\d_disk.csv'
+# Print after lines
+nLine = 10000
