@@ -2,6 +2,7 @@ import os
 import settings
 import traceback
 
+sDelimeter = settings.sDelimeter
 sDISK = ''
 sTEMPLATEFILE = ''
 sPATHCOMPARE = ''
@@ -23,6 +24,14 @@ def copy_files(setCandidateToCopy):
         traceback.print_exc()
 
 
+def create_line_log(sLine):
+
+    listInfo = sLine.split(';')
+
+    sOutLine = listInfo[0] + sDelimeter + listInfo[1] + sDelimeter + listInfo[3] # Name, size and hash
+
+    return sOutLine
+
 def start_compare():
 
     if not (sTEMPLATEFILE and sPATHCOMPARE and sDISK):
@@ -34,11 +43,15 @@ def start_compare():
 
     with open(sTEMPLATEFILE, 'r', encoding='utf8') as objTemplateCSV:
         for sLine in objTemplateCSV:
-            setTemplateData.add(sLine)
+
+            sOutLine = create_line_log(sLine)
+            setTemplateData.add(sOutLine)
 
     with open(sPATHCOMPARE, 'r', encoding='utf8') as objCompareCSV:
         for sLine in objCompareCSV:
-            setCompareData.add(sLine)
+
+            sOutLine = create_line_log(sLine)
+            setCompareData.add(sOutLine)
 
 
     setDiff = setTemplateData.difference(setCompareData)

@@ -197,7 +197,6 @@ def collect_files_info(sRootPath):
                         sStrToWrite = create_string_for_file(tplFileInfo)
                         objOutCSV.write(sStrToWrite)
 
-
             #break
 
     except Exception as err:
@@ -217,7 +216,8 @@ def print_results(objStart, nCnt):
 if __name__ == '__main__':
 
     try:
-        start = datetime.now()
+
+        nTotalCnt = 0
 
         process = multiprocessing.Process(target = alive)
         process.start()
@@ -227,28 +227,13 @@ if __name__ == '__main__':
         objNow = datetime.now()
         sCurrentTime = objNow.strftime("%H:%M:%S")
 
-        if settings.bCalculateHash:
-
-            nCounter = multiprocessing.Value('i', 0)
-
-            print(str(nCounter.value) + '\t' + sCurrentTime)
-
-            # количество ядер у процессора
-            n_proc = multiprocessing.cpu_count()
-
-            pool = multiprocessing.Pool(processes=n_proc, initializer = init, initargs = (nCounter,))
-
-        else:
-            nCounter = 0
-
-            print(str(nCounter) + '\t' + sCurrentTime)
 
         listDrives = settings.listDiskToWalk
 
         sOutFilePath = os.path.join(os.path.join(os.environ['USERPROFILE']), 'Desktop') # Windows only
 
 
-        objDate = datetime.now().date()
+        objDate = objNow.date()
         sCurrentDate = objDate.strftime("%Y_%m_%d")
 
         for sDrive in listDrives:
@@ -259,6 +244,9 @@ if __name__ == '__main__':
 
             if isExist:
 
+                startDrive = datetime.now()
+                sCurrentTime = startDrive.strftime("%H:%M:%S")
+
                 print('================ Scan ', sRootPath, ' ================')
 
                 sFilePrefix = sDrive + '_'
@@ -268,15 +256,42 @@ if __name__ == '__main__':
 
                 objOutCSV = open(sOutFile, "w", encoding = 'utf-8')
 
+
+                if settings.bCalculateHash:
+
+                    nCounter = multiprocessing.Value('i', 0)
+
+                    print(str(nCounter.value) + '\t' + sCurrentTime)
+
+                    # количество ядер у процессора
+                    n_proc = multiprocessing.cpu_count()
+
+                    pool = multiprocessing.Pool(processes=n_proc, initializer = init, initargs = (nCounter,))
+
+                    if pool:
+                        pool.close()
+                        pool.join()
+
+                else:
+                    nCounter = 0
+
+                    print(str(nCounter) + '\t' + sCurrentTime)
+
+
                 collect_files_info(sRootPath)
                 dictFiles[sDrive] = sOutFile
                 listCsv.append(objOutCSV)
 
 
+                if settings.bCalculateHash:
+                    print_results(startDrive, nCounter.value)
 
-        if pool:
-            pool.close()
-            pool.join()
+                    nTotalCnt = nTotalCnt + nCounter.value
+
+                else:
+                    print_results(startDrive, nCounter)
+
+                    nTotalCnt = nTotalCnt + nCounter
 
         for objFile in listCsv:
             objFile.close()
@@ -306,12 +321,8 @@ if __name__ == '__main__':
             compare_files.sPATHCOMPARE = dictFiles[sKey]
             compare_files.start_compare()
 
+        print_results(objNow, nTotalCnt)
 
-        if settings.bCalculateHash:
-            print_results(start, nCounter.value)
-
-        else:
-            print_results(start, nCounter)
 
         time.sleep(3)
 
@@ -319,11 +330,7 @@ if __name__ == '__main__':
 
         process.terminate()
 
-        if settings.bCalculateHash:
-            print_results(start, nCounter.value)
-
-        else:
-            print_results(start, nCounter)
+        print_results(objNow, nTotalCnt)
 
 
         time.sleep(1)
